@@ -8,12 +8,12 @@ export default function Home() {
           <div>
             <div className="card-title">Welcome to UniNest FUW</div>
             <div className="card-sub" style={{ marginTop: 6 }}>
-              Access landlord management, application processing, and escrow workflows from the admin portal.
+              Access landlord management, application processing, and escrow workflows from the platform.
             </div>
           </div>
         </div>
         <p style={{ color: 'var(--text2)', lineHeight: 1.8, marginBottom: 20 }}>
-          This dashboard helps you manage student housing operations in one place. Use the sidebar to navigate between applications, verified landlords, and payment tracking.
+          This platform helps you manage student housing operations in one place. Use the sidebar to navigate between applications, verified landlords, and payment tracking.
         </p>
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
           <div className="feature-pill" style={{ background: 'rgba(242, 247, 246, 0.95)', color: 'var(--text)', border: '1px solid rgba(15, 26, 19, 0.08)' }}>

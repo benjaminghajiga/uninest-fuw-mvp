@@ -1,7 +1,7 @@
 import React from 'react';
 import { useStore, resetAll } from '../store.js';
 
-export default function Settings() {
+export default function Settings({ user, onLogout }) {
   const { beds, applications, listings, landlords, transactions } = useStore();
 
   function handleReset() {
@@ -12,6 +12,19 @@ export default function Settings() {
 
   return (
     <div className="grid-2">
+      <div className="card">
+        <div className="card-header"><div className="card-title">Account</div></div>
+        <div className="kpi-mini"><span className="kpi-mini-label">Name</span><span className="kpi-mini-val">{user?.name || '—'}</span></div>
+        <div className="kpi-mini"><span className="kpi-mini-label">Email</span><span className="kpi-mini-val">{user?.email || '—'}</span></div>
+        <div className="kpi-mini"><span className="kpi-mini-label">Role</span><span className="badge" style={{ backgroundColor: user?.role === 'landlord' ? '#fbbf24' : '#60a5fa' }}>{user?.role || '—'}</span></div>
+        <div className="kpi-mini"><span className="kpi-mini-label">User ID</span><span style={{ fontSize: 12, color: 'var(--text3)' }}>{user?.id || '—'}</span></div>
+        <div style={{ marginTop: 16 }}>
+          <button className="btn btn-ghost" onClick={onLogout}>
+            <i className="ti ti-logout"></i> Logout
+          </button>
+        </div>
+      </div>
+
       <div className="card">
         <div className="card-header"><div className="card-title">Platform Data</div></div>
         <div className="kpi-mini"><span className="kpi-mini-label">Applications</span><span className="kpi-mini-val">{applications.length}</span></div>

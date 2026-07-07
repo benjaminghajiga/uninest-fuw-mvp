@@ -1,6 +1,5 @@
 export const pageMap = {
-  home: { title: 'Home', sub: 'Admin portal landing page for UniNest FUW' },
-  dashboard: { title: 'Dashboard', sub: 'Federal University of Wukari — Live System' },
+  home: { title: 'Home', sub: 'Platform landing page for UniNest FUW' },
   applications: { title: 'Applications Queue', sub: 'Pending and processed student applications' },
   landlords: { title: 'Verified Landlords', sub: 'KYC registry and landlord management' },
   payments: { title: 'Payments & Escrow', sub: 'Transaction tracking and escrow management' },
@@ -12,7 +11,6 @@ export const navSections = [
     label: 'Overview',
     items: [
       { key: 'home', icon: 'ti-home', label: 'Home' },
-      { key: 'dashboard', icon: 'ti-layout-dashboard', label: 'Dashboard' },
     ],
   },
   {
@@ -29,7 +27,7 @@ export const navSections = [
     ],
   },
   {
-    label: 'Admin',
+    label: 'Platform',
     items: [
       { key: 'settings', icon: 'ti-settings', label: 'Settings' },
     ],

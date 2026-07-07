@@ -8,8 +8,8 @@ const initialValues = {
   role: 'student',
 };
 
-export default function Auth({ onAuthSuccess }) {
-  const [isSignup, setIsSignup] = useState(false);
+export default function Auth({ onAuthSuccess, initialMode = 'signin', onClose }) {
+  const [isSignup, setIsSignup] = useState(initialMode === 'signup');
   const [values, setValues] = useState(initialValues);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -39,11 +39,30 @@ export default function Auth({ onAuthSuccess }) {
       return;
     }
 
-    setSuccess(isSignup ? 'Account created successfully.' : 'Signed in successfully.');
-    setTimeout(() => {
-      setValues(initialValues);
-      onAuthSuccess();
-    }, 400);
+    (async () => {
+      try {
+        const endpoint = isSignup ? '/api/register' : '/api/login';
+        const body = isSignup
+          ? { name: values.name, email: values.email, password: values.password, role: values.role }
+          : { email: values.email, password: values.password };
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          setError(data?.error || 'Authentication failed');
+          return;
+        }
+        setSuccess(isSignup ? 'Account created successfully.' : 'Signed in successfully.');
+        setValues(initialValues);
+        if (onAuthSuccess) onAuthSuccess(data);
+        if (onClose) onClose();
+      } catch (err) {
+        setError('Network error.');
+      }
+    })();
   };
 
   return (
@@ -55,7 +74,7 @@ export default function Auth({ onAuthSuccess }) {
           <p>
             {isSignup
               ? 'Sign up to manage student housing, applications, and payments in one place.'
-              : 'Sign in to access the management dashboard and keep your housing workflow moving.'}
+              : 'Sign in to access the management portal and keep your housing workflow moving.'}
           </p>
           <div className="auth-panel-notes">
             <div>
@@ -75,17 +94,24 @@ export default function Auth({ onAuthSuccess }) {
                 {isSignup ? 'Enter your details to get started.' : 'Use your account email and password.'}
               </div>
             </div>
-            <button
-              type="button"
-              className="btn btn-ghost btn-sm"
-              onClick={() => {
-                setIsSignup((prev) => !prev);
-                setError('');
-                setSuccess('');
-              }}
-            >
-              {isSignup ? 'Have an account?' : 'Create account'}
-            </button>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={() => {
+                  setIsSignup((prev) => !prev);
+                  setError('');
+                  setSuccess('');
+                }}
+              >
+                {isSignup ? 'Have an account?' : 'Create account'}
+              </button>
+              {onClose && (
+                <button type="button" className="btn btn-ghost btn-sm" onClick={onClose}>
+                  Close
+                </button>
+              )}
+            </div>
           </div>
 
           <form className="auth-form" onSubmit={handleSubmit}>

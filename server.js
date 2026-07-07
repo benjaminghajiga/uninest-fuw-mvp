@@ -1,22 +1,26 @@
 import express from 'express';
 import dotenv from 'dotenv';
 import Stripe from 'stripe';
+import crypto from 'crypto';
 
 dotenv.config();
 
 const app = express();
+
+// parse JSON bodies for all routes by default
+app.use(express.json());
 
 const port = process.env.PORT || 4000;
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 const stripeWebhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
 
-if (!stripeSecretKey) {
-  throw new Error('Missing STRIPE_SECRET_KEY in environment');
+let stripe = null;
+if (stripeSecretKey) {
+  stripe = new Stripe(stripeSecretKey, { apiVersion: '2024-11-15' });
+} else {
+  console.warn('STRIPE_SECRET_KEY not set — Stripe endpoints will be disabled.');
 }
-
-const stripe = new Stripe(stripeSecretKey, { apiVersion: '2024-11-15' });
-
 const state = {
   landlords: [],
   beds: [],
@@ -24,6 +28,37 @@ const state = {
   listings: [],
   transactions: [],
 };
+
+// Simple in-memory users and sessions (for MVP)
+const users = []; // { id, name, email, role, passwordHash, salt }
+const sessions = new Map(); // token -> userId
+
+function hashPassword(password, salt = null) {
+  const s = salt || crypto.randomBytes(16).toString('hex');
+  const hash = crypto.pbkdf2Sync(password, s, 100000, 64, 'sha512').toString('hex');
+  return { salt: s, hash };
+}
+
+function verifyPassword(password, salt, hash) {
+  const h = crypto.pbkdf2Sync(password, salt, 100000, 64, 'sha512').toString('hex');
+  return h === hash;
+}
+
+function generateToken() {
+  return crypto.randomBytes(24).toString('hex');
+}
+
+function requireAuth(req, res, next) {
+  const auth = req.headers.authorization || '';
+  const token = auth.startsWith('Bearer ') ? auth.slice(7) : req.query.token;
+  if (!token) return res.status(401).json({ error: 'Missing auth token' });
+  const userId = sessions.get(token);
+  if (!userId) return res.status(401).json({ error: 'Invalid or expired token' });
+  const user = users.find((u) => u.id === userId);
+  if (!user) return res.status(401).json({ error: 'Invalid session' });
+  req.user = { id: user.id, name: user.name, email: user.email, role: user.role };
+  next();
+}
 
 function genId(prefix) {
   return `${prefix}_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
@@ -44,6 +79,44 @@ function allocateApplication(application) {
 
 app.get('/api/status', (req, res) => {
   res.json({ status: 'ok', message: 'UniNest FUW backend is running' });
+});
+
+// --- Auth endpoints ---
+app.post('/api/register', express.json(), (req, res) => {
+  const { name, email, password, role } = req.body || {};
+  if (!name || !email || !password) {
+    return res.status(400).json({ error: 'name, email and password are required' });
+  }
+  const existing = users.find((u) => u.email.toLowerCase() === email.toLowerCase());
+  if (existing) return res.status(409).json({ error: 'Account with this email already exists' });
+  const { salt, hash } = hashPassword(password);
+  const user = { id: genId('user'), name, email: email.toLowerCase(), role: role || 'student', passwordHash: hash, salt };
+  users.push(user);
+  const token = generateToken();
+  sessions.set(token, user.id);
+  res.status(201).json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role } });
+});
+
+app.post('/api/login', express.json(), (req, res) => {
+  const { email, password } = req.body || {};
+  if (!email || !password) return res.status(400).json({ error: 'email and password required' });
+  const user = users.find((u) => u.email.toLowerCase() === email.toLowerCase());
+  if (!user) return res.status(401).json({ error: 'Invalid credentials' });
+  if (!verifyPassword(password, user.salt, user.passwordHash)) return res.status(401).json({ error: 'Invalid credentials' });
+  const token = generateToken();
+  sessions.set(token, user.id);
+  res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role } });
+});
+
+app.get('/api/me', requireAuth, (req, res) => {
+  res.json({ user: req.user });
+});
+
+app.post('/api/logout', requireAuth, (req, res) => {
+  const auth = req.headers.authorization || '';
+  const token = auth.startsWith('Bearer ') ? auth.slice(7) : req.query.token;
+  sessions.delete(token);
+  res.json({ ok: true });
 });
 
 app.get('/api/state', (req, res) => {
@@ -214,6 +287,7 @@ app.put('/api/transactions/:id/dispute', (req, res) => {
 });
 
 app.post('/api/paystripe/charge', async (req, res) => {
+  if (!stripe) return res.status(501).json({ error: 'Stripe not configured on server' });
   const { name, type, amount } = req.body;
   if (!name || !type || amount == null) {
     return res.status(400).json({ error: 'name, type, and amount are required' });
@@ -272,6 +346,7 @@ app.post('/api/paystripe/charge', async (req, res) => {
 
 // Confirm a checkout session immediately (useful after redirect)
 app.get('/api/paystripe/confirm', async (req, res) => {
+  if (!stripe) return res.status(501).json({ error: 'Stripe not configured on server' });
   const sessionId = req.query.sessionId || req.query.session_id;
   if (!sessionId) {
     return res.status(400).json({ error: 'sessionId query parameter is required' });
@@ -296,8 +371,8 @@ app.get('/api/paystripe/confirm', async (req, res) => {
 });
 
 app.post('/webhook', express.raw({ type: 'application/json' }), (req, res) => {
-  if (!stripeWebhookSecret) {
-    return res.status(500).send('Webhook secret not configured');
+  if (!stripeWebhookSecret || !stripe) {
+    return res.status(500).send('Webhook not configured');
   }
 
   const signature = req.headers['stripe-signature'];
