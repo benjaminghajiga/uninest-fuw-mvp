@@ -60,6 +60,12 @@ function requireAuth(req, res, next) {
   next();
 }
 
+function requireLandlord(req, res, next) {
+  if (!req.user) return res.status(401).json({ error: 'Authentication required' });
+  if (req.user.role !== 'landlord') return res.status(403).json({ error: 'Landlords only' });
+  next();
+}
+
 function genId(prefix) {
   return `${prefix}_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
 }
@@ -117,6 +123,82 @@ app.post('/api/logout', requireAuth, (req, res) => {
   const token = auth.startsWith('Bearer ') ? auth.slice(7) : req.query.token;
   sessions.delete(token);
   res.json({ ok: true });
+});
+
+// --- Marketplace Listings Endpoints ---
+// GET all listings (public)
+app.get('/api/listings', (req, res) => {
+  res.json(state.listings);
+});
+
+// GET single listing (public)
+app.get('/api/listings/:id', (req, res) => {
+  const listing = state.listings.find((l) => l.id === req.params.id);
+  if (!listing) return res.status(404).json({ error: 'Listing not found' });
+  res.json(listing);
+});
+
+// POST create listing (landlord only, requires auth)
+app.post('/api/listings', requireAuth, requireLandlord, (req, res) => {
+  const { title, description, price, bedrooms, bathrooms, location, amenities, availableFrom, image } = req.body || {};
+  if (!title || !price || !bedrooms || !bathrooms || !location) {
+    return res.status(400).json({ error: 'title, price, bedrooms, bathrooms, and location are required' });
+  }
+  const listing = {
+    id: genId('listing'),
+    landlordId: req.user.id,
+    landlordName: req.user.name,
+    title: title.trim(),
+    description: description?.trim() || '',
+    price: Number(price),
+    bedrooms: Number(bedrooms),
+    bathrooms: Number(bathrooms),
+    location: location.trim(),
+    amenities: Array.isArray(amenities) ? amenities : [],
+    availableFrom: availableFrom || new Date().toISOString().split('T')[0],
+    image: image || null,
+    createdAt: new Date().toISOString(),
+    status: 'available', // available, rented, archived
+  };
+  state.listings.push(listing);
+  res.status(201).json(listing);
+});
+
+// PUT update listing (landlord only, requires ownership)
+app.put('/api/listings/:id', requireAuth, requireLandlord, (req, res) => {
+  const listing = state.listings.find((l) => l.id === req.params.id);
+  if (!listing) return res.status(404).json({ error: 'Listing not found' });
+  if (listing.landlordId !== req.user.id) return res.status(403).json({ error: 'You can only edit your own listings' });
+  
+  const { title, description, price, bedrooms, bathrooms, location, amenities, availableFrom, status } = req.body || {};
+  if (title !== undefined) listing.title = title.trim();
+  if (description !== undefined) listing.description = description.trim();
+  if (price !== undefined) listing.price = Number(price);
+  if (bedrooms !== undefined) listing.bedrooms = Number(bedrooms);
+  if (bathrooms !== undefined) listing.bathrooms = Number(bathrooms);
+  if (location !== undefined) listing.location = location.trim();
+  if (amenities !== undefined) listing.amenities = Array.isArray(amenities) ? amenities : [];
+  if (availableFrom !== undefined) listing.availableFrom = availableFrom;
+  if (status !== undefined && ['available', 'rented', 'archived'].includes(status)) listing.status = status;
+  
+  res.json(listing);
+});
+
+// DELETE listing (landlord only, requires ownership)
+app.delete('/api/listings/:id', requireAuth, requireLandlord, (req, res) => {
+  const idx = state.listings.findIndex((l) => l.id === req.params.id);
+  if (idx === -1) return res.status(404).json({ error: 'Listing not found' });
+  const listing = state.listings[idx];
+  if (listing.landlordId !== req.user.id) return res.status(403).json({ error: 'You can only delete your own listings' });
+  
+  state.listings.splice(idx, 1);
+  res.json({ ok: true });
+});
+
+// GET landlord's listings (landlord auth required)
+app.get('/api/my-listings', requireAuth, requireLandlord, (req, res) => {
+  const myListings = state.listings.filter((l) => l.landlordId === req.user.id);
+  res.json(myListings);
 });
 
 app.get('/api/state', (req, res) => {

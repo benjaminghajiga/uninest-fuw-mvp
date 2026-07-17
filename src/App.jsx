@@ -6,6 +6,8 @@ import Applications from './pages/Applications.jsx';
 import Landlords from './pages/Landlords.jsx';
 import Payments from './pages/Payments.jsx';
 import Settings from './pages/Settings.jsx';
+import Marketplace from './pages/Marketplace.jsx';
+import Properties from './pages/Properties.jsx';
 
 export default function App() {
   const [authenticated, setAuthenticated] = useState(false);
@@ -130,12 +132,15 @@ export default function App() {
 
   // Role-specific pages
   const studentPages = [
-    ...commonPages,
+    { id: 'home', label: 'Home', icon: 'ti-home' },
+    { id: 'marketplace', label: 'Marketplace', icon: 'ti-home-search' },
+    { id: 'applications', label: 'My Applications', icon: 'ti-forms' },
+    { id: 'settings', label: 'Settings', icon: 'ti-settings' },
   ];
 
   const landlordPages = [
     { id: 'home', label: 'Home', icon: 'ti-home' },
-    { id: 'landlords', label: 'Landlords', icon: 'ti-users' },
+    { id: 'properties', label: 'My Properties', icon: 'ti-home-2' },
     { id: 'payments', label: 'Payments', icon: 'ti-wallet' },
     { id: 'settings', label: 'Settings', icon: 'ti-settings' },
   ];
